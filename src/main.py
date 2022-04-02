@@ -1,101 +1,107 @@
-'''
+"""
 Created on Mar 28, 2022
 
 @author: tg
-'''
+"""
+
 import os
 import sys
 import glob
 import pandas as pd
 from math import nan
 
-def getMin_Without_NaN(L: list):
-    notNaNs = [item for item in L if not pd.isnull(item) == True]
-    if (notNaNs):
-        return int(min(notNaNs))
-    return nan
 
-def getAvg_Without_NaN(L: list):
-    notNaNs = [item for item in L if not pd.isnull(item) == True]
-    if (notNaNs):
-        return int(sum(notNaNs)/len(notNaNs))
-    return nan
+def min_without_nan(sensor_humidity: list) -> int:
+    not_NaNs = [item for item in sensor_humidity if not pd.isnull(item)]
+    if not_NaNs:
+        return int(min(not_NaNs))
 
-def getMax_Without_NaN(L: list):
-    notNaNs = [item for item in L if not pd.isnull(item) == True]
-    if (notNaNs):
-        return int(max(notNaNs))
-    return nan
 
-def orderBy_AvgList(D: dict):
-    sorted_sensors = sorted(D.items(), key=lambda x: x[1][1], reverse=True)
+def avg_without_nan(sensor_humidity: list) -> int:
+    not_NaNs = [item for item in sensor_humidity if not pd.isnull(item)]
+    if not_NaNs:
+        return int(sum(not_NaNs) / len(not_NaNs))
+
+
+def max_without_nan(sensor_humidity: list) -> int:
+    not_NaNs = [item for item in sensor_humidity if not pd.isnull(item)]
+    if not_NaNs:
+        return int(max(not_NaNs))
+
+
+def order_by_avg(sensor_statistics: dict) -> str:
+    sorted_sensors = sorted(sensor_statistics.items(), key=lambda x: x[1][1], reverse=True)
     res = ""
     for i in sorted_sensors:
         res += f"{i[0]},{','.join(map(str, i[1]))}\n"
     return res
 
-def is_AllNaNs(humidity: list):
-    if (not humidity):
-        if (pd.isnull(humidity[0]) and humidity.all()):
-            return True
-        
+
+def all_nans(humidity: list) -> bool:
+    if [x for x in humidity if not pd.isnull(x)]:
+        return False
+
+    return True
+
+
 def main():
+    files_processed = 0
+    succeeded_measurements = 0
+    failed_measurements = 0
 
-    FILES_PROCESSED = 0
-    SUCCEDED_MEASUREMENTS = 0
-    FAILED_MEASUREMENTS = 0
+    try:
+        path = sys.argv[1]
+    except Exception as e:
+        print(f"Exception: {e}.")
+    finally:
+        print("Path not found!\nSetting Path to default testing directory!")
+        # Default Directory containing test files
+        path = "../rsc/"
+        print(f"Path: {path}\n")
 
-    path = sys.argv[1]
+    D = {}  # Dictionary that contains sensors' humidity values
+    sensor_statistics = {}  # Dictionary containing sensors' min, avg, max
 
-    if os.path.exists(path):
+    for filename in glob.glob(path + '*.csv'):  # matching csv files
 
-        D = {} # Dictionary that contains sensors' humidity values
-        Sensor_Statistics = {} # Dictionary containing sensors' min, avg, max
+        files_processed += 1
+        df = pd.read_csv(filename)
 
-        for filename in glob.glob(path + '*.csv'): # matching csv files
+        print(df.head())  # printing a sample
 
-            FILES_PROCESSED += 1
-            df = pd.read_csv(filename)
+        # Aggregates into the same sensor's id
+        agg_sensors = df.groupby('sensor-id')['humidity'].apply(list)
+        print(agg_sensors)
 
-            print(df.head()) # printing a sample
+        # Adds to dictionary containing every sensor-id and their humidity values
+        for sensor_id in agg_sensors.to_dict():
+            if sensor_id in D:
+                D[sensor_id] += agg_sensors[sensor_id]
+            else:
+                D[sensor_id] = agg_sensors[sensor_id]
 
-            # Aggregates into the same sensor's id
-            agg_sensors = df.groupby('sensor-id')['humidity'].apply(list)
-            print(agg_sensors)
+        print(D)
 
-            # Adds to dictionary containing every sensor-id and their humidity values
-            for sensor_id in  agg_sensors.to_dict():
-                if sensor_id in D:
-                    D[sensor_id] += agg_sensors[sensor_id]
-                else:
-                    D[sensor_id] = agg_sensors[sensor_id]
+        succeeded_measurements += df['humidity'].count()
+        failed_measurements += sum(pd.isnull(df['humidity']))
 
-            print(D)
+    # Calculates each sensor statistics ignoring NaN values read
+    for sensor_id in D:
+        if not all_nans(D[sensor_id]):
+            sensor_statistics[sensor_id] = [min_without_nan(D[sensor_id]),
+                                            avg_without_nan(D[sensor_id]),
+                                            max_without_nan(D[sensor_id])]
 
-            SUCCEDED_MEASUREMENTS += df['humidity'].count()
-            FAILED_MEASUREMENTS  += sum(pd.isnull(df['humidity']))
+        else:  # All sensor's readings from given sensor-id are NaN
+            sensor_statistics[sensor_id] = [nan, nan, nan]
 
-        # Calculates each sensor statistics ignoring NaN values read
-        for sensor_id in D:
-            if (not is_AllNaNs(D[sensor_id])):
-                Sensor_Statistics[sensor_id] = [getMin_Without_NaN(D[sensor_id]),
-                                                getAvg_Without_NaN(D[sensor_id]),
-                                                getMax_Without_NaN(D[sensor_id])]
+    print(f"Unordered: {sensor_statistics.items()}\n\n# RESULTS:\n")
 
-            else: # All sensor's readings from given sensor-id are NaN
-                Sensor_Statistics[sensor_id] = [nan,nan,nan]
-
-            print(orderBy_AvgList(Sensor_Statistics))
-
-
-        print(f'Files Processed: {FILES_PROCESSED}')
-        print(f'Succeded Measurements: {SUCCEDED_MEASUREMENTS}')
-        print(f'Failed Measurements: {FAILED_MEASUREMENTS}') 
-        print(f"\nSorted by highest averages:\n\nsensor-id,min,avg,max")
-        print(orderBy_AvgList(Sensor_Statistics))
-
-    else:
-        print("Path not found! Path: " + str(path))
+    print(f"Files Processed: {files_processed}")
+    print(f"Succeeded Measurements: {succeeded_measurements}")
+    print(f"Failed Measurements: {failed_measurements}")
+    print(f"\nSorted by highest averages:\n\nsensor-id,min,avg,max")
+    print(order_by_avg(sensor_statistics))
 
 
 if __name__ == '__main__':
