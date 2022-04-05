@@ -35,18 +35,15 @@ class SensorStats:
 
     def min_without_nan(self) -> int:
         """Retrieves the minimum humidity read while ignoring NaN values."""
-        if self.humidity_not_nans:
-            return int(min(self.humidity_not_nans))
+        return int(min(self.humidity_not_nans))
 
     def avg_without_nan(self) -> int:
         """Retrieves the average humidity read while ignoring NaN values."""
-        if self.humidity_not_nans:
-            return int(sum(self.humidity_not_nans) / len(self.humidity_not_nans))
+        return int(sum(self.humidity_not_nans) / len(self.humidity_not_nans))
 
     def max_without_nan(self) -> int:
         """Retrieves the maximum humidity read while ignoring NaN values."""
-        if self.humidity_not_nans:
-            return int(max(self.humidity_not_nans))
+        return int(max(self.humidity_not_nans))
 
     def __repr__(self):
         return f"{self.id},{self.humidity},{self.min_humidity},{self.avg_humidity},{self.max_humidity}"
