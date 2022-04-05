@@ -4,44 +4,60 @@ Created on Mar 28, 2022
 @author: tg
 """
 
-import os
 import sys
 import glob
 import pandas as pd
 from math import nan
+from dataclasses import dataclass, field
 
 
-def min_without_nan(sensor_humidity: list) -> int:
-    not_NaNs = [item for item in sensor_humidity if not pd.isnull(item)]
-    if not_NaNs:
-        return int(min(not_NaNs))
+@dataclass(order=True)
+class SensorStats:
+    id: str
+    humidity: list[str]
+    humidity_not_nans: list[str]
+    min_humidity: float = nan
+    avg_humidity: float = nan
+    max_humidity: float = nan
+    sort_index: int = -1
+
+    def __init__(self, id, humidity):
+        """Constructor takes dictionary pair of key, values and calculates stats of each sensor's id."""
+        self.id = id
+        self.humidity = humidity
+        self.humidity_not_nans = [item for item in self.humidity if not pd.isnull(item)]
+
+        if self.humidity_not_nans:
+            self.min_humidity = self.min_without_nan()
+            self.avg_humidity = self.avg_without_nan()
+            self.max_humidity = self.max_without_nan()
+            self.sort_index = self.avg_humidity
+
+    def min_without_nan(self) -> int:
+        """Retrieves the minimum humidity read while ignoring NaN values."""
+        if self.humidity_not_nans:
+            return int(min(self.humidity_not_nans))
+
+    def avg_without_nan(self) -> int:
+        """Retrieves the average humidity read while ignoring NaN values."""
+        if self.humidity_not_nans:
+            return int(sum(self.humidity_not_nans) / len(self.humidity_not_nans))
+
+    def max_without_nan(self) -> int:
+        """Retrieves the maximum humidity read while ignoring NaN values."""
+        if self.humidity_not_nans:
+            return int(max(self.humidity_not_nans))
+
+    def __repr__(self):
+        return f"{self.id},{self.humidity},{self.min_humidity},{self.avg_humidity},{self.max_humidity}"
+
+    def __str__(self):
+        return f"{self.id},{self.min_humidity},{self.avg_humidity},{self.max_humidity}"
 
 
-def avg_without_nan(sensor_humidity: list) -> int:
-    not_NaNs = [item for item in sensor_humidity if not pd.isnull(item)]
-    if not_NaNs:
-        return int(sum(not_NaNs) / len(not_NaNs))
-
-
-def max_without_nan(sensor_humidity: list) -> int:
-    not_NaNs = [item for item in sensor_humidity if not pd.isnull(item)]
-    if not_NaNs:
-        return int(max(not_NaNs))
-
-
-def order_by_avg(sensor_statistics: dict) -> str:
-    sorted_sensors = sorted(sensor_statistics.items(), key=lambda x: x[1][1], reverse=True)
-    res = ""
-    for i in sorted_sensors:
-        res += f"{i[0]},{','.join(map(str, i[1]))}\n"
-    return res
-
-
-def all_nans(humidity: list) -> bool:
-    if [x for x in humidity if not pd.isnull(x)]:
-        return False
-
-    return True
+def order_by_avg(sensor_stats: list[SensorStats]) -> list[SensorStats]:
+    """Order each Sensor by the highest average humidity read."""
+    return sorted(sensor_stats, key=lambda x:x.sort_index, reverse=True)
 
 
 def main():
@@ -59,19 +75,18 @@ def main():
         path = "../rsc/"
         print(f"Path: {path}\n")
 
-    D = {}  # Dictionary that contains sensors' humidity values
-    sensor_statistics = {}  # Dictionary containing sensors' min, avg, max
+    D = {}  # Dictionary that contains sensors' humidity values. Being used as placeholder for the aggregation.
 
     for filename in glob.glob(path + '*.csv'):  # matching csv files
 
         files_processed += 1
         df = pd.read_csv(filename)
 
-        print(df.head())  # printing a sample
+        print(f"Dataframe sample {files_processed}\n{df.head()}\n")  # printing a sample
 
         # Aggregates into the same sensor's id
         agg_sensors = df.groupby('sensor-id')['humidity'].apply(list)
-        print(agg_sensors)
+        print(f"Aggregation\n{agg_sensors}\n")
 
         # Adds to dictionary containing every sensor-id and their humidity values
         for sensor_id in agg_sensors.to_dict():
@@ -80,28 +95,19 @@ def main():
             else:
                 D[sensor_id] = agg_sensors[sensor_id]
 
-        print(D)
-
         succeeded_measurements += df['humidity'].count()
         failed_measurements += sum(pd.isnull(df['humidity']))
 
-    # Calculates each sensor statistics ignoring NaN values read
-    for sensor_id in D:
-        if not all_nans(D[sensor_id]):
-            sensor_statistics[sensor_id] = [min_without_nan(D[sensor_id]),
-                                            avg_without_nan(D[sensor_id]),
-                                            max_without_nan(D[sensor_id])]
+    # List of Sensors' objects containing humidity, min, avg and max values
+    sensor_stats = [SensorStats(sensor_id, D[sensor_id]) for sensor_id in D]
 
-        else:  # All sensor's readings from given sensor-id are NaN
-            sensor_statistics[sensor_id] = [nan, nan, nan]
-
-    print(f"Unordered: {sensor_statistics.items()}\n\n# RESULTS:\n")
+    print(f"Unordered: {sensor_stats}\n\n# RESULTS:\n")
 
     print(f"Files Processed: {files_processed}")
     print(f"Succeeded Measurements: {succeeded_measurements}")
     print(f"Failed Measurements: {failed_measurements}")
     print(f"\nSorted by highest averages:\n\nsensor-id,min,avg,max")
-    print(order_by_avg(sensor_statistics))
+    print('\n'.join(map(str, order_by_avg(sensor_stats))))
 
 
 if __name__ == '__main__':
